@@ -18,6 +18,8 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#define _GNU_SOURCE 1
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -25,11 +27,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <time.h>				/* nanosleep */
 #include <sys/ioctl.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/audioio.h>
+#include "audioio.h"
 #ifdef	AUDIO_SWFEATURE_MIXER	/* solaris8 or newer? */
 # define HAVE_SYS_MIXER_H 1
 #endif
@@ -48,6 +51,15 @@
 #include "libaf/af_format.h"
 #include "mp_msg.h"
 #include "help_mp.h"
+
+/* Redirect calls to rump */
+#include <stdint.h>
+#include <rump/rump.h>
+#include <rump/rump_syscalls.h>
+#define open		rump_sys_open
+#define write		rump_sys_write
+#define ioctl		rump_sys_ioctl
+#define close		rump_sys_close
 
 static const ao_info_t info =
 {
@@ -455,7 +467,7 @@ static int control(int cmd,void *arg){
 		else
 		    info.play.balance = (vol->right - vol->left + volume) * AUDIO_RIGHT_BALANCE / (2*volume);
 	    }
-#if !defined (__OpenBSD__) && !defined (__NetBSD__)
+#if !defined (__OpenBSD__) && !defined (__NetBSD__) && !defined (__linux__) && !defined (__GNU__)
 	    info.output_muted = (volume == 0);
 #endif
 	    ioctl( fd,AUDIO_SETINFO,&info );
@@ -476,6 +488,8 @@ static int init(int rate,int channels,int format,int flags){
     int pass;
     int ok;
     int convert_u8_s8;
+
+		rump_init();
 
     setup_device_paths();
 

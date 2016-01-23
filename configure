@@ -5938,6 +5938,8 @@ fi
 if test "$_sunaudio" = yes ; then
   def_sunaudio='#define CONFIG_SUN_AUDIO 1'
   aomodules="sun $aomodules"
+  extra_ldflags="$extra_ldflags -lrump -lrumpuser -lrumpvfs -lrumpdev -lrumpdev_audio"
+  extra_ldflags="$extra_ldflags -lrumpdev_pci -lrumpdev_pci_auich -lrumpdev_audio_ac97 -lrumpdev_pci_hdaudio -lrumpdev_hdaudio_hdafg"
 else
   def_sunaudio='#undef CONFIG_SUN_AUDIO'
   noaomodules="sun $noaomodules"

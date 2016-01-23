@@ -19,6 +19,10 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#ifdef __GNU__
+#define _GNU_SOURCE
+#endif
+
 #include <stdio.h>
 #include <limits.h>
 #include <ctype.h>
@@ -148,7 +152,11 @@ static void id2str(const uint8_t *id, int idlen, char dst[ID_STR_LEN])
 static int find_vuk(struct bd_priv *bd, const uint8_t discid[20])
 {
     char line[1024];
+#ifdef __GNU__
+    char *filename;
+#else
     char filename[PATH_MAX];
+#endif
     const char *home;
     int vukfound = 0;
     stream_t *file;
@@ -156,13 +164,23 @@ static int find_vuk(struct bd_priv *bd, const uint8_t discid[20])
 
     // look up discid in KEYDB.cfg to get VUK
     home = getenv("HOME");
+#ifdef __GNU__
+    asprintf(&filename, "%s/.dvdcss/KEYDB.cfg", home);
+#else
     snprintf(filename, sizeof(filename), "%s/.dvdcss/KEYDB.cfg", home);
+#endif
     file = open_stream(filename, NULL, NULL);
     if (!file) {
         mp_msg(MSGT_OPEN,MSGL_ERR,
                "Cannot open VUK database file %s\n", filename);
+#ifdef __GNU__
+        free(filename);
+#endif
         return 0;
     }
+#ifdef __GNU__
+    free(filename);
+#endif
     id2str(discid, 20, idstr);
     while (stream_read_line(file, line, sizeof(line), 0)) {
         char *vst;
@@ -207,23 +225,40 @@ static int bd_get_uks(struct bd_priv *bd)
     struct AVAES *a;
     struct AVSHA *asha;
     stream_t *file;
+#ifdef __GNU__
+    char *filename;
+#else
     char filename[PATH_MAX];
+#endif
     uint8_t discid[20];
     char idstr[ID_STR_LEN];
 
+#ifdef __GNU__
+    asprintf(&filename, BD_UKF_PATH, bd->device);
+#else
     snprintf(filename, sizeof(filename), BD_UKF_PATH, bd->device);
+#endif
     file = open_stream(filename, NULL, NULL);
     if (!file) {
         mp_msg(MSGT_OPEN, MSGL_ERR,
                "Cannot open file %s to get UK and DiscID\n", filename);
+#ifdef __GNU__
+        free(filename);
+#endif
         return 0;
     }
     file_size = file->end_pos;
     if (file_size <= 0 || file_size > 10 * 1024* 1024) {
         mp_msg(MSGT_OPEN, MSGL_ERR, "File %s too large\n", filename);
         free_stream(file);
+#ifdef __GNU__
+        free(filename);
+#endif
         return 0;
     }
+#ifdef __GNU__
+    free(filename);
+#endif
     buf = av_malloc(file_size);
     stream_read(file, buf, file_size);
     free_stream(file);
@@ -414,15 +449,29 @@ static void get_clipinf(struct bd_priv *bd)
 {
     int i;
     int langmap_offset, index_offset, end_offset;
+#ifdef __GNU__
+    char *filename;
+#else
     char filename[PATH_MAX];
+#endif
     stream_t *file;
 
+#ifdef __GNU__
+    asprintf(&filename, BD_CLIPINF_PATH, bd->device, bd->title);
+#else
     snprintf(filename, sizeof(filename), BD_CLIPINF_PATH, bd->device, bd->title);
+#endif
     file = open_stream(filename, NULL, NULL);
     if (!file) {
         mp_msg(MSGT_OPEN, MSGL_ERR, "Cannot open clipinf %s\n", filename);
+#ifdef __GNU__
+        free(filename);
+#endif
         return;
     }
+#ifdef __GNU__
+    free(filename);
+#endif
     if (stream_read_qword(file) != AV_RB64("HDMV0200")) {
         mp_msg(MSGT_OPEN, MSGL_ERR, "Unknown clipinf format\n");
         return;
@@ -472,7 +521,11 @@ static int bd_stream_control(stream_t *s, int cmd, void *arg)
 
 static int bd_stream_open(stream_t *s, int mode, void* opts, int* file_format)
 {
+#ifdef __GNU__
+    char *filename;
+#else
     char filename[PATH_MAX];
+#endif
 
     struct stream_priv_s* p = opts;
     struct bd_priv *bd = calloc(1, sizeof(*bd));
@@ -509,9 +562,16 @@ static int bd_stream_open(stream_t *s, int mode, void* opts, int* file_format)
     // set up AES key from uk
     av_aes_init(bd->aeseed, bd->uks.keys[0].u8, 128, 0);
 
+#ifdef __GNU__
+    asprintf(&filename, BD_M2TS_PATH, bd->device, bd->title);
+#else
     snprintf(filename, sizeof(filename), BD_M2TS_PATH, bd->device, bd->title);
+#endif
     mp_msg(MSGT_OPEN, MSGL_STATUS, "Opening %s\n", filename);
     bd->title_file = open_stream(filename, NULL, NULL);
+#ifdef __GNU__
+    free(filename);
+#endif
     if (!bd->title_file)
         return STREAM_ERROR;
     s->end_pos = bd->title_file->end_pos;

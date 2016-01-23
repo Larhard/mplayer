@@ -16,6 +16,9 @@
  * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
  */
 
+#ifdef __GNU__
+#define _GNU_SOURCE
+#endif
 #include <stdlib.h>
 #include <stdio.h>
 #include <dirent.h>
@@ -420,7 +423,11 @@ static void clos(menu_t* menu) {
 static int open_fs(menu_t* menu, char* av_unused args) {
   char *path = mpriv->path;
   int r = 0;
+#ifdef __GNU__
+  char *wd, *b = NULL;
+#else
   char wd[PATH_MAX+1], b[PATH_MAX+1];
+#endif
 
   menu->draw = menu_list_draw;
   menu->read_cmd = read_cmd;
@@ -448,7 +455,11 @@ static int open_fs(menu_t* menu, char* av_unused args) {
     }
   }
 
+#ifdef __GNU__
+  wd = get_current_dir_name();
+#else
   getcwd(wd,PATH_MAX);
+#endif
   if (!path || path[0] == '\0') {
 #if 0
     char *slash = NULL;
@@ -467,13 +478,24 @@ static int open_fs(menu_t* menu, char* av_unused args) {
       path = wd;
   }
   if (path[0] != '/') {
+#ifdef __GNU__
+    if(path[strlen(path)-1] != '/')
+      asprintf(&b,"%s/%s/",wd,path);
+    else
+      asprintf(&b,"%s/%s",wd,path);
+#else
     if(path[strlen(path)-1] != '/')
       snprintf(b,sizeof(b),"%s/%s/",wd,path);
     else
       snprintf(b,sizeof(b),"%s/%s",wd,path);
+#endif
     path = b;
   } else if (path[strlen(path)-1]!='/') {
+#ifdef __GNU__
+    asprintf(&b,"%s/",path);
+#else
     sprintf(b,"%s/",path);
+#endif
     path = b;
   }
   if (menu_chroot && menu_chroot[0] == '/') {
@@ -484,12 +506,21 @@ static int open_fs(menu_t* menu, char* av_unused args) {
       if (menu_chroot[l] == '/')
         path = menu_chroot;
       else {
+#ifdef __GNU__
+        asprintf(&b,"%s/",menu_chroot);
+#else
         sprintf(b,"%s/",menu_chroot);
+#endif
         path = b;
       }
     }
   }
   r = open_dir(menu,path);
+
+#ifdef __GNU__
+  free(wd);
+  free(b);
+#endif
 
   return r;
 }

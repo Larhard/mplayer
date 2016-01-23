@@ -18,6 +18,9 @@
 
 #define _BSD_SOURCE
 
+#ifdef __GNU__
+#define _GNU_SOURCE
+#endif
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -66,8 +69,13 @@ mf_t* open_mf(char * filename){
    FILE *lst_f=fopen(filename + 1,"r");
    if ( lst_f )
     {
+#ifdef __GNU__
+     fname=NULL;
+     while ( getline( &fname, 0, lst_f ) >= 0 )
+#else
      fname=malloc(PATH_MAX);
      while ( fgets( fname,PATH_MAX,lst_f ) )
+#endif
       {
        /* remove spaces from end of fname */
        char *t=fname + strlen( fname ) - 1;
@@ -82,6 +90,10 @@ mf_t* open_mf(char * filename){
          mf->names[mf->nr_of_files]=strdup( fname );
          mf->nr_of_files++;
         }
+#ifdef __GNU__
+       free( fname );
+       fname=NULL;
+#endif
       }
       fclose( lst_f );
 

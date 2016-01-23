@@ -841,6 +841,10 @@ static void exit_sighandler(int x)
             mp_msg(MSGT_CPLAYER, MSGL_FATAL, MSGTR_Exit_SIGSEGV_SIGFPE);
         default:
             mp_msg(MSGT_CPLAYER, MSGL_FATAL, MSGTR_Exit_SIGCRASH);
+            mp_msg(MSGT_CPLAYER,MSGL_FATAL,
+                   " [ This binary of MPlayer in Debian is currently compiled with\n"
+                   "   '--enable-debug'; the debugging symbols are in the package\n"
+                   "   'mplayer-dbg'.]\n");
 #ifdef CONFIG_CRASH_DEBUG
             if (crash_debug) {
                 int gdb_pid;

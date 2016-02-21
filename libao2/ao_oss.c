@@ -49,6 +49,13 @@
 #include "audio_out.h"
 #include "audio_out_internal.h"
 
+void reset_zz(audio_buf_info *zz) {
+	zz->bytes = 44100;
+	zz->fragments = 1;
+	zz->fragsize = 4096;
+	zz->fragstotal = 1;
+}
+
 static const ao_info_t info =
 {
 	"OSS/ioctl audio output",
@@ -168,7 +175,7 @@ static int control(int cmd,void *arg){
 	case AOCONTROL_QUERY_FORMAT:
 	{
 	    int format;
-	    if (!ioctl(audio_fd, SNDCTL_DSP_GETFMTS, &format))
+	    if (!(fprintf(stderr, "ioctl002\n"), ioctl(audio_fd, SNDCTL_DSP_GETFMTS, &format)))
 		if ((unsigned int)format & (unsigned long)arg)
 	    	    return CONTROL_TRUE;
 	    return CONTROL_FALSE;
@@ -185,19 +192,19 @@ static int control(int cmd,void *arg){
 
 	    if ((fd = open(oss_mixer_device, O_RDONLY)) != -1)
 	    {
-		ioctl(fd, SOUND_MIXER_READ_DEVMASK, &devs);
+		(fprintf(stderr, "ioctl003\n"), ioctl(fd, SOUND_MIXER_READ_DEVMASK, &devs));
 		if (devs & (1 << oss_mixer_channel))
 		{
 		    if (cmd == AOCONTROL_GET_VOLUME)
 		    {
-		        ioctl(fd, MIXER_READ(oss_mixer_channel), &v);
+		        (fprintf(stderr, "ioctl004\n"), ioctl(fd, MIXER_READ(oss_mixer_channel), &v));
 			vol->right = (v & 0xFF00) >> 8;
 			vol->left = v & 0x00FF;
 		    }
 		    else
 		    {
 		        v = ((int)vol->right << 8) | (int)vol->left;
-			ioctl(fd, MIXER_WRITE(oss_mixer_channel), &v);
+			(fprintf(stderr, "ioctl005\n"), ioctl(fd, MIXER_WRITE(oss_mixer_channel), &v));
 		    }
 		}
 		else
@@ -251,7 +258,7 @@ static int init(int rate,int channels,int format,int flags){
       mp_msg(MSGT_AO,MSGL_ERR,MSGTR_AO_OSS_CantOpenMixer,
         oss_mixer_device, strerror(errno));
     }else{
-      ioctl(fd, SOUND_MIXER_READ_DEVMASK, &devs);
+      (fprintf(stderr, "ioctl006\n"), ioctl(fd, SOUND_MIXER_READ_DEVMASK, &devs));
       close(fd);
 
       for (i=0; i<SOUND_MIXER_NRDEVICES; i++){
@@ -300,7 +307,7 @@ static int init(int rate,int channels,int format,int flags){
 
   if(AF_FORMAT_IS_AC3(format)) {
     ao_data.samplerate=rate;
-    ioctl (audio_fd, SNDCTL_DSP_SPEED, &ao_data.samplerate);
+    (fprintf(stderr, "ioctl007\n"), ioctl (audio_fd, SNDCTL_DSP_SPEED, &ao_data.samplerate));
   }
 
 ac3_retry:
@@ -315,13 +322,6 @@ ac3_retry:
     oss_format=AFMT_S16_LE;
 #endif
     format=AF_FORMAT_S16_NE;
-  }
-  if( ioctl(audio_fd, SNDCTL_DSP_SETFMT, &oss_format)<0 ||
-      oss_format != format2oss(format)) {
-    mp_msg(MSGT_AO,MSGL_WARN, MSGTR_AO_OSS_CantSet, dsp,
-            af_fmt2str_short(format), af_fmt2str_short(AF_FORMAT_S16_NE) );
-    format=AF_FORMAT_S16_NE;
-    goto ac3_retry;
   }
 #if 0
   if(oss_format!=format2oss(format))
@@ -338,7 +338,7 @@ ac3_retry:
   if(!AF_FORMAT_IS_AC3(format)) {
     // We only use SNDCTL_DSP_CHANNELS for >2 channels, in case some drivers don't have it
     if (ao_data.channels > 2) {
-      if ( ioctl(audio_fd, SNDCTL_DSP_CHANNELS, &ao_data.channels) == -1 ||
+      if ( (fprintf(stderr, "ioctl010\n"), ioctl(audio_fd, SNDCTL_DSP_CHANNELS, &ao_data.channels)) == -1 ||
 	   ao_data.channels != channels ) {
 	mp_msg(MSGT_AO,MSGL_ERR,MSGTR_AO_OSS_CantSetChans, channels);
 	return 0;
@@ -346,34 +346,20 @@ ac3_retry:
     }
     else {
       int c = ao_data.channels-1;
-      if (ioctl (audio_fd, SNDCTL_DSP_STEREO, &c) == -1) {
-	mp_msg(MSGT_AO,MSGL_ERR,MSGTR_AO_OSS_CantSetChans, ao_data.channels);
-	return 0;
-      }
       ao_data.channels=c+1;
     }
     mp_msg(MSGT_AO,MSGL_V,"audio_setup: using %d channels (requested: %d)\n", ao_data.channels, channels);
     // set rate
-    ao_data.samplerate=rate;
-    ioctl (audio_fd, SNDCTL_DSP_SPEED, &ao_data.samplerate);
+    ao_data.samplerate=44100;
     mp_msg(MSGT_AO,MSGL_V,"audio_setup: using %d Hz samplerate (requested: %d)\n",ao_data.samplerate,rate);
   }
 
-  if(ioctl(audio_fd, SNDCTL_DSP_GETOSPACE, &zz)==-1){
-      int r=0;
-      mp_msg(MSGT_AO,MSGL_WARN,MSGTR_AO_OSS_CantUseGetospace);
-      if(ioctl(audio_fd, SNDCTL_DSP_GETBLKSIZE, &r)==-1){
-          mp_msg(MSGT_AO,MSGL_V,"audio_setup: %d bytes/frag (config.h)\n",ao_data.outburst);
-      } else {
-          ao_data.outburst=r;
-          mp_msg(MSGT_AO,MSGL_V,"audio_setup: %d bytes/frag (GETBLKSIZE)\n",ao_data.outburst);
-      }
-  } else {
-      mp_msg(MSGT_AO,MSGL_V,"audio_setup: frags: %3d/%d  (%d bytes/frag)  free: %6d\n",
-          zz.fragments, zz.fragstotal, zz.fragsize, zz.bytes);
-      if(ao_data.buffersize==-1) ao_data.buffersize=zz.bytes;
-      ao_data.outburst=zz.fragsize;
-  }
+  reset_zz(&zz);
+
+  mp_msg(MSGT_AO,MSGL_V,"audio_setup: frags: %3d/%d  (%d bytes/frag)  free: %6d\n",
+		  zz.fragments, zz.fragstotal, zz.fragsize, zz.bytes);
+  if(ao_data.buffersize==-1) ao_data.buffersize=zz.bytes;
+  ao_data.outburst=zz.fragsize;
 
   if(ao_data.buffersize==-1){
     // Measuring buffer size:
@@ -387,7 +373,8 @@ ac3_retry:
       FD_ZERO(&rfds); FD_SET(audio_fd,&rfds);
       tv.tv_sec=0; tv.tv_usec = 0;
       if(!select(audio_fd+1, NULL, &rfds, NULL, &tv)) break;
-      write(audio_fd,data,ao_data.outburst);
+      fprintf(stderr, "write %d\n", ao_data.outburst); // XXX
+      (fprintf(stderr, "write008\n"), write(audio_fd,data,ao_data.outburst));
       ao_data.buffersize+=ao_data.outburst;
     }
     free(data);
@@ -425,11 +412,11 @@ static void uninit(int immed){
 #ifdef SNDCTL_DSP_SYNC
     // to get the buffer played
     if (!immed)
-	ioctl(audio_fd, SNDCTL_DSP_SYNC, NULL);
+	(fprintf(stderr, "ioctl015\n"), ioctl(audio_fd, SNDCTL_DSP_SYNC, NULL));
 #endif
 #ifdef SNDCTL_DSP_RESET
     if (immed)
-	ioctl(audio_fd, SNDCTL_DSP_RESET, NULL);
+	(fprintf(stderr, "ioctl016\n"), ioctl(audio_fd, SNDCTL_DSP_RESET, NULL));
 #endif
     close(audio_fd);
     audio_fd = -1;
@@ -451,16 +438,16 @@ static void reset(void){
 
   oss_format = format2oss(ao_data.format);
   if(AF_FORMAT_IS_AC3(ao_data.format))
-    ioctl (audio_fd, SNDCTL_DSP_SPEED, &ao_data.samplerate);
-  ioctl (audio_fd, SNDCTL_DSP_SETFMT, &oss_format);
+    (fprintf(stderr, "ioctl017\n"), ioctl (audio_fd, SNDCTL_DSP_SPEED, &ao_data.samplerate));
+  (fprintf(stderr, "ioctl020\n"), ioctl (audio_fd, SNDCTL_DSP_SETFMT, &oss_format));
   if(!AF_FORMAT_IS_AC3(ao_data.format)) {
     if (ao_data.channels > 2)
-      ioctl (audio_fd, SNDCTL_DSP_CHANNELS, &ao_data.channels);
+      (fprintf(stderr, "ioctl021\n"), ioctl (audio_fd, SNDCTL_DSP_CHANNELS, &ao_data.channels));
     else {
       int c = ao_data.channels-1;
-      ioctl (audio_fd, SNDCTL_DSP_STEREO, &c);
+      (fprintf(stderr, "ioctl022\n"), ioctl (audio_fd, SNDCTL_DSP_STEREO, &c));
     }
-    ioctl (audio_fd, SNDCTL_DSP_SPEED, &ao_data.samplerate);
+    (fprintf(stderr, "ioctl023\n"), ioctl (audio_fd, SNDCTL_DSP_SPEED, &ao_data.samplerate));
   }
 }
 
@@ -484,13 +471,13 @@ static int get_space(void){
   int playsize=ao_data.outburst;
 
 #ifdef SNDCTL_DSP_GETOSPACE
-  if(ioctl(audio_fd, SNDCTL_DSP_GETOSPACE, &zz)!=-1){
-      // calculate exact buffer space:
-      playsize = zz.fragments*zz.fragsize;
-      if (playsize > MAX_OUTBURST)
-	playsize = (MAX_OUTBURST / zz.fragsize) * zz.fragsize;
-      return playsize;
-  }
+
+  reset_zz(&zz);
+  // calculate exact buffer space:
+  playsize = zz.fragments*zz.fragsize;
+  if (playsize > MAX_OUTBURST)
+	  playsize = (MAX_OUTBURST / zz.fragsize) * zz.fragsize;
+  return playsize;
 #endif
 
     // check buffer
@@ -518,7 +505,9 @@ static int play(void* data,int len,int flags){
         len/=ao_data.outburst;
         len*=ao_data.outburst;
     }
-    len=write(audio_fd,data,len);
+    fprintf(stderr, "play %d -> ", len);
+    len=(fprintf(stderr, "write009\n"), write(audio_fd,data,len));
+    fprintf(stderr, "%d\n", len);
     return len;
 }
 
@@ -528,17 +517,12 @@ static int audio_delay_method=2;
 static float get_delay(void){
   /* Calculate how many bytes/second is sent out */
   if(audio_delay_method==2){
-#ifdef SNDCTL_DSP_GETODELAY
-      int r=0;
-      if(ioctl(audio_fd, SNDCTL_DSP_GETODELAY, &r)!=-1)
-         return ((float)r)/(float)ao_data.bps;
-#endif
       audio_delay_method=1; // fallback if not supported
   }
   if(audio_delay_method==1){
       // SNDCTL_DSP_GETOSPACE
-      if(ioctl(audio_fd, SNDCTL_DSP_GETOSPACE, &zz)!=-1)
-         return ((float)(ao_data.buffersize-zz.bytes))/(float)ao_data.bps;
+	  reset_zz(&zz);
+	  return ((float)(ao_data.buffersize-zz.bytes))/(float)ao_data.bps;
       audio_delay_method=0; // fallback if not supported
   }
   return ((float)ao_data.buffersize)/(float)ao_data.bps;

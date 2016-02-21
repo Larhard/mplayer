@@ -256,7 +256,7 @@ static int init(int rate_hz, int channels, int format, int flags)
 
     /* enable non-blocking i/o on the socket connection to the esd server */
     if ((fl = fcntl(esd_play_fd, F_GETFL)) >= 0)
-	fcntl(esd_play_fd, F_SETFL, O_NDELAY|fl);
+	fcntl(esd_play_fd, F_SETFL, fl);
 
 #if ESD_DEBUG
     {

@@ -40,7 +40,7 @@
 
 struct vf_priv_s {
     int frameno;
-    char fname[PATH_MAX];
+    char fname[128];
     char *prefix;
     /// shot stores current screenshot mode:
     /// 0: don't take screenshots

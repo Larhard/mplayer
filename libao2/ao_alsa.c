@@ -648,15 +648,7 @@ static int init(int rate_hz, int channels, int format, int flags)
 	       snd_strerror(err));
 	return 0;
       }
-#if SND_LIB_VERSION >= 0x000901
-      if ((err = snd_pcm_sw_params_get_boundary(alsa_swparams, &boundary)) < 0) {
-	mp_msg(MSGT_AO,MSGL_ERR,MSGTR_AO_ALSA_UnableToGetBoundary,
-	       snd_strerror(err));
-	return 0;
-      }
-#else
       boundary = 0x7fffffff;
-#endif
       /* start playing when one period has been written */
       if ((err = snd_pcm_sw_params_set_start_threshold(alsa_handler, alsa_swparams, chunk_size)) < 0) {
 	mp_msg(MSGT_AO,MSGL_ERR,MSGTR_AO_ALSA_UnableToSetStartThreshold,
@@ -815,11 +807,6 @@ static int play(void* data, int len, int flags)
 	/* nothing to do */
 	res = 0;
       }
-      else if (res == -ESTRPIPE) {	/* suspend */
-	mp_msg(MSGT_AO,MSGL_INFO,MSGTR_AO_ALSA_PcmInSuspendModeTryingResume);
-	while ((res = snd_pcm_resume(alsa_handler)) == -EAGAIN)
-	  sleep(1);
-      }
       if (res < 0) {
 	mp_msg(MSGT_AO,MSGL_ERR,MSGTR_AO_ALSA_WriteError, snd_strerror(res));
 	mp_msg(MSGT_AO,MSGL_INFO,MSGTR_AO_ALSA_TryingToResetSoundcard);
@@ -865,9 +852,6 @@ static float get_delay(void)
 
     if (delay < 0) {
       /* underrun - move the application pointer forward to catch up */
-#if SND_LIB_VERSION >= 0x000901 /* snd_pcm_forward() exists since 0.9.0rc8 */
-      snd_pcm_forward(alsa_handler, -delay);
-#endif
       delay = 0;
     }
     return (float)delay / (float)ao_data.samplerate;
